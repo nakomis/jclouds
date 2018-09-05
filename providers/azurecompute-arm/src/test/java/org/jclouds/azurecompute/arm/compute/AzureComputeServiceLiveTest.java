@@ -16,16 +16,17 @@
  */
 package org.jclouds.azurecompute.arm.compute;
 
-import static org.jclouds.azurecompute.arm.compute.options.AzureTemplateOptions.Builder.resourceGroup;
-import static org.jclouds.azurecompute.arm.config.AzureComputeProperties.TIMEOUT_RESOURCE_DELETED;
-import static org.testng.Assert.assertTrue;
-
-import java.net.URI;
-import java.util.Properties;
-
+import com.google.common.base.Predicate;
+import com.google.inject.Key;
+import com.google.inject.Module;
+import com.google.inject.TypeLiteral;
+import com.google.inject.name.Names;
 import org.jclouds.azurecompute.arm.AzureComputeApi;
 import org.jclouds.azurecompute.arm.AzureComputeProviderMetadata;
+import org.jclouds.azurecompute.arm.domain.IdReference;
+import org.jclouds.azurecompute.arm.domain.Resource;
 import org.jclouds.azurecompute.arm.internal.AzureLiveTestUtils;
+import org.jclouds.compute.domain.NodeMetadata;
 import org.jclouds.compute.domain.Template;
 import org.jclouds.compute.domain.TemplateBuilder;
 import org.jclouds.compute.internal.BaseComputeServiceLiveTest;
@@ -37,22 +38,28 @@ import org.jclouds.scriptbuilder.domain.Statements;
 import org.jclouds.scriptbuilder.statements.java.InstallJDK;
 import org.jclouds.scriptbuilder.statements.login.AdminAccess;
 import org.jclouds.sshj.config.SshjSshClientModule;
+import org.testng.Assert;
 import org.testng.annotations.AfterClass;
 import org.testng.annotations.Test;
 
-import com.google.common.base.Predicate;
-import com.google.inject.Key;
-import com.google.inject.Module;
-import com.google.inject.TypeLiteral;
-import com.google.inject.name.Names;
+import java.net.URI;
+import java.util.List;
+import java.util.Properties;
+
+import static com.google.common.collect.Sets.newTreeSet;
+import static org.jclouds.azurecompute.arm.compute.options.AzureTemplateOptions.Builder.resourceGroup;
+import static org.jclouds.azurecompute.arm.config.AzureComputeProperties.TIMEOUT_RESOURCE_DELETED;
+import static org.jclouds.azurecompute.arm.config.AzureComputeProperties.TIMEOUT_RESOURCE_REMOVED;
+import static org.testng.Assert.assertTrue;
 
 /**
  * Live tests for the {@link org.jclouds.compute.ComputeService} integration.
  */
 @Test(groups = "live", singleThreaded = true, testName = "AzureComputeServiceLiveTest")
 public class AzureComputeServiceLiveTest extends BaseComputeServiceLiveTest {
-   
+
    private Predicate<URI> resourceDeleted;
+   private Predicate<IdReference> resourceRemoved;
    private String resourceGroupName;
 
    public AzureComputeServiceLiveTest() {
@@ -65,6 +72,20 @@ public class AzureComputeServiceLiveTest extends BaseComputeServiceLiveTest {
       super.initializeContext();
       resourceDeleted = context.utils().injector().getInstance(Key.get(new TypeLiteral<Predicate<URI>>() {
       }, Names.named(TIMEOUT_RESOURCE_DELETED)));
+      resourceRemoved = context.utils().injector().getInstance(Key.get(new TypeLiteral<Predicate<IdReference>>() {
+      }, Names.named(TIMEOUT_RESOURCE_REMOVED)));
+   }
+
+   @Test(groups = "live", enabled = true)
+   public void testResourceGroupDeletedOnDestroy() throws Exception {
+      template = buildTemplate(templateBuilder());
+      nodes = newTreeSet(client.createNodesInGroup(group, 1, template));
+      NodeMetadata node = nodes.first();
+      client.destroyNode(node.getId());
+      List<Resource> resources = view.unwrapApi(AzureComputeApi.class).getResourceGroupApi().resources(resourceGroupName);
+      if (!resources.isEmpty()) {
+         Assert.fail("Resource group was not empty, contained " + resources);
+      }
    }
 
    @Override

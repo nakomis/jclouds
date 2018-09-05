@@ -19,6 +19,7 @@ package org.jclouds.azurecompute.arm.compute.config;
 import static com.google.common.base.Preconditions.checkNotNull;
 import static org.jclouds.azurecompute.arm.config.AzureComputeProperties.OPERATION_TIMEOUT;
 import static org.jclouds.azurecompute.arm.config.AzureComputeProperties.TIMEOUT_RESOURCE_DELETED;
+import static org.jclouds.azurecompute.arm.config.AzureComputeProperties.TIMEOUT_RESOURCE_REMOVED;
 import static org.jclouds.azurecompute.arm.config.AzureComputeProperties.VAULT_CERTIFICATE_DELETE_STATUS;
 import static org.jclouds.azurecompute.arm.config.AzureComputeProperties.VAULT_CERTIFICATE_OPERATION_STATUS;
 import static org.jclouds.azurecompute.arm.config.AzureComputeProperties.VAULT_CERTIFICATE_RECOVERABLE_STATUS;
@@ -37,10 +38,12 @@ import java.net.URI;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
+import com.google.common.base.Optional;
 import org.jclouds.azurecompute.arm.AzureComputeApi;
 import org.jclouds.azurecompute.arm.domain.Certificate.CertificateBundle;
 import org.jclouds.azurecompute.arm.domain.Certificate.CertificateOperation;
 import org.jclouds.azurecompute.arm.domain.Certificate.DeletedCertificateBundle;
+import org.jclouds.azurecompute.arm.domain.IdReference;
 import org.jclouds.azurecompute.arm.domain.Image;
 import org.jclouds.azurecompute.arm.domain.Key.DeletedKeyBundle;
 import org.jclouds.azurecompute.arm.domain.Key.KeyBundle;
@@ -65,8 +68,16 @@ import com.google.common.collect.Iterables;
 import com.google.inject.AbstractModule;
 import com.google.inject.Provides;
 import com.google.inject.name.Named;
+import org.jclouds.logging.Logger;
+
+import javax.annotation.Resource;
 
 public class AzurePredicatesModule extends AbstractModule {
+
+   @Resource
+   @Named(ComputeServiceConstants.COMPUTE_LOGGER)
+   protected Logger logger;
+
    protected void configure() {
    }
 
@@ -98,7 +109,8 @@ public class AzurePredicatesModule extends AbstractModule {
    @Named(TIMEOUT_RESOURCE_DELETED)
    protected Predicate<URI> provideResourceDeletedPredicate(final AzureComputeApi api,
          final ComputeServiceConstants.Timeouts timeouts, final PollPeriod pollPeriod) {
-      return retry(new ActionDonePredicate(api), timeouts.nodeTerminated, pollPeriod.pollInitialPeriod,
+      long timeout = timeouts.nodeTerminated;
+      return retry(new ActionDonePredicate(api), timeout, pollPeriod.pollInitialPeriod,
             pollPeriod.pollMaxPeriod);
    }
 
@@ -108,6 +120,27 @@ public class AzurePredicatesModule extends AbstractModule {
          final ComputeServiceConstants.Timeouts timeouts, final PollPeriod pollPeriod) {
       return new VirtualMachineInStatePredicateFactory(api, VirtualMachineInstance.PowerState.STOPPED,
             timeouts.nodeTerminated, pollPeriod.pollInitialPeriod, pollPeriod.pollMaxPeriod);
+   }
+
+   @Provides
+   @Named(TIMEOUT_RESOURCE_REMOVED)
+   protected Predicate<IdReference> provideResourceRemovedPredicate(final AzureComputeApi api, final ComputeServiceConstants.Timeouts timeouts,
+         final PollPeriod pollPeriod) {
+      long timeout = timeouts.nodeTerminated;
+      return retry(new Predicate<IdReference>() {
+         @Override
+         public boolean apply(final IdReference input) {
+            List<org.jclouds.azurecompute.arm.domain.Resource> attachedResources = api.getResourceGroupApi().resources(input.resourceGroup());
+            Optional<org.jclouds.azurecompute.arm.domain.Resource> resourceInGroup = Iterables.tryFind(attachedResources, new Predicate<org.jclouds.azurecompute.arm.domain.Resource>() {
+               @Override
+               public boolean apply(org.jclouds.azurecompute.arm.domain.Resource resource) {
+                  return resource.id().equalsIgnoreCase(input.id());
+               }
+            });
+
+            return !resourceInGroup.isPresent();
+         }
+      }, timeout, pollPeriod.pollInitialPeriod, pollPeriod.pollMaxPeriod);
    }
 
    @Provides

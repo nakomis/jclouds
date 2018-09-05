@@ -32,6 +32,7 @@ import org.jclouds.azurecompute.arm.domain.AvailabilitySet;
 import org.jclouds.azurecompute.arm.domain.AvailabilitySet.AvailabilitySetProperties;
 import org.jclouds.azurecompute.arm.domain.DataDisk;
 import org.jclouds.azurecompute.arm.domain.DataDisk.DiskCreateOptionTypes;
+import org.jclouds.azurecompute.arm.domain.Disk;
 import org.jclouds.azurecompute.arm.domain.IdReference;
 import org.jclouds.azurecompute.arm.domain.IpConfiguration;
 import org.jclouds.azurecompute.arm.domain.IpConfigurationProperties;
@@ -162,11 +163,16 @@ public class CleanupResourcesTest {
 
         AzureComputeApi api = createMock(AzureComputeApi.class);
         DiskApi diskApi = createMock(DiskApi.class);
+        Disk disk = createMock(Disk.class);
 
         expect(api.getDiskApi("myGroupName")).andReturn(diskApi).atLeastOnce();
 
         expect(diskApi.delete("myOsDisk")).andReturn(URI.create("http://myDeletionUri"));
         expect(diskApi.delete("myDataDisk")).andReturn(URI.create("http://myDeletionUri"));
+        // Simulate a delay in disk deletion
+        expect(diskApi.get("myDataDisk")).andReturn(disk).times(3);
+        expect(diskApi.get("myDataDisk")).andReturn(null).times(2); // An additional call is made when filtering the set
+        expect(diskApi.get("myOsDisk")).andReturn(null);
 
         replay(api, diskApi);
 
@@ -260,7 +266,8 @@ public class CleanupResourcesTest {
     private static CleanupResources cleanupResources(AzureComputeApi api) {
         Predicate<URI> resourceDeleted = Predicates.alwaysTrue();
         GroupNamingConvention.Factory namingConvention = new MockGroupNamingConventionFactory();
-        return new CleanupResources(api, resourceDeleted, namingConvention);
+        Predicate<IdReference> resourceRemoved = Predicates.alwaysTrue();
+        return new CleanupResources(api, resourceDeleted, namingConvention, resourceRemoved);
     }
 
     static class MockGroupNamingConventionFactory implements GroupNamingConvention.Factory {

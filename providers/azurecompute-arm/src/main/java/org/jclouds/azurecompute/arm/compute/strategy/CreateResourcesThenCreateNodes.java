@@ -163,8 +163,8 @@ public class CreateResourcesThenCreateNodes extends CreateNodesWithGroupEncodedI
          
          logger.debug(">> network options have not been configured. Creating network %s(%s) and subnet %s(%s)", name,
                defaultVnetAddressPrefix, name, defaultSubnetAddressPrefix);
-         
-         api.getVirtualNetworkApi(options.getResourceGroup()).createOrUpdate(name, location, null, properties);
+
+         api.getVirtualNetworkApi(options.getResourceGroup()).createOrUpdate(name, location, ImmutableMap.of("jclouds", group), properties);
 
          checkState(networkAvailable.create(options.getResourceGroup()).apply(name),
                "Network/Subnet was not created in the configured timeout");
