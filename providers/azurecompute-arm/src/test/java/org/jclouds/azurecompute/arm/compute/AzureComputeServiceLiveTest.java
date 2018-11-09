@@ -17,6 +17,7 @@
 package org.jclouds.azurecompute.arm.compute;
 
 import com.google.common.base.Predicate;
+import com.google.common.collect.Iterables;
 import com.google.inject.Key;
 import com.google.inject.Module;
 import com.google.inject.TypeLiteral;
@@ -38,7 +39,6 @@ import org.jclouds.scriptbuilder.domain.Statements;
 import org.jclouds.scriptbuilder.statements.java.InstallJDK;
 import org.jclouds.scriptbuilder.statements.login.AdminAccess;
 import org.jclouds.sshj.config.SshjSshClientModule;
-import org.testng.Assert;
 import org.testng.annotations.AfterClass;
 import org.testng.annotations.Test;
 
@@ -46,11 +46,11 @@ import java.net.URI;
 import java.util.List;
 import java.util.Properties;
 
-import static com.google.common.collect.Sets.newTreeSet;
 import static org.jclouds.azurecompute.arm.compute.options.AzureTemplateOptions.Builder.resourceGroup;
 import static org.jclouds.azurecompute.arm.config.AzureComputeProperties.TIMEOUT_RESOURCE_DELETED;
-import static org.jclouds.azurecompute.arm.config.AzureComputeProperties.TIMEOUT_RESOURCE_REMOVED;
+import static org.jclouds.azurecompute.arm.config.AzureComputeProperties.NOT_IN_RESOURCE_GROUP;
 import static org.testng.Assert.assertTrue;
+import static org.testng.Assert.fail;
 
 /**
  * Live tests for the {@link org.jclouds.compute.ComputeService} integration.
@@ -73,18 +73,17 @@ public class AzureComputeServiceLiveTest extends BaseComputeServiceLiveTest {
       resourceDeleted = context.utils().injector().getInstance(Key.get(new TypeLiteral<Predicate<URI>>() {
       }, Names.named(TIMEOUT_RESOURCE_DELETED)));
       resourceRemoved = context.utils().injector().getInstance(Key.get(new TypeLiteral<Predicate<IdReference>>() {
-      }, Names.named(TIMEOUT_RESOURCE_REMOVED)));
+      }, Names.named(NOT_IN_RESOURCE_GROUP)));
    }
 
    @Test(groups = "live", enabled = true)
    public void testResourceGroupDeletedOnDestroy() throws Exception {
       template = buildTemplate(templateBuilder());
-      nodes = newTreeSet(client.createNodesInGroup(group, 1, template));
-      NodeMetadata node = nodes.first();
+      NodeMetadata node = Iterables.getOnlyElement(client.createNodesInGroup(group, 1, template));
       client.destroyNode(node.getId());
       List<Resource> resources = view.unwrapApi(AzureComputeApi.class).getResourceGroupApi().resources(resourceGroupName);
       if (!resources.isEmpty()) {
-         Assert.fail("Resource group was not empty, contained " + resources);
+         fail("Resource group was not empty, contained " + resources);
       }
    }
 

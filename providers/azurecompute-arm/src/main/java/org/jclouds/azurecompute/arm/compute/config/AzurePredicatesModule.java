@@ -17,9 +17,9 @@
 package org.jclouds.azurecompute.arm.compute.config;
 
 import static com.google.common.base.Preconditions.checkNotNull;
+import static org.jclouds.azurecompute.arm.config.AzureComputeProperties.NOT_IN_RESOURCE_GROUP;
 import static org.jclouds.azurecompute.arm.config.AzureComputeProperties.OPERATION_TIMEOUT;
 import static org.jclouds.azurecompute.arm.config.AzureComputeProperties.TIMEOUT_RESOURCE_DELETED;
-import static org.jclouds.azurecompute.arm.config.AzureComputeProperties.TIMEOUT_RESOURCE_REMOVED;
 import static org.jclouds.azurecompute.arm.config.AzureComputeProperties.VAULT_CERTIFICATE_DELETE_STATUS;
 import static org.jclouds.azurecompute.arm.config.AzureComputeProperties.VAULT_CERTIFICATE_OPERATION_STATUS;
 import static org.jclouds.azurecompute.arm.config.AzureComputeProperties.VAULT_CERTIFICATE_RECOVERABLE_STATUS;
@@ -109,8 +109,7 @@ public class AzurePredicatesModule extends AbstractModule {
    @Named(TIMEOUT_RESOURCE_DELETED)
    protected Predicate<URI> provideResourceDeletedPredicate(final AzureComputeApi api,
          final ComputeServiceConstants.Timeouts timeouts, final PollPeriod pollPeriod) {
-      long timeout = timeouts.nodeTerminated;
-      return retry(new ActionDonePredicate(api), timeout, pollPeriod.pollInitialPeriod,
+      return retry(new ActionDonePredicate(api), timeouts.nodeTerminated, pollPeriod.pollInitialPeriod,
             pollPeriod.pollMaxPeriod);
    }
 
@@ -123,8 +122,15 @@ public class AzurePredicatesModule extends AbstractModule {
    }
 
    @Provides
-   @Named(TIMEOUT_RESOURCE_REMOVED)
-   protected Predicate<IdReference> provideResourceRemovedPredicate(final AzureComputeApi api, final ComputeServiceConstants.Timeouts timeouts,
+   @Named(NOT_IN_RESOURCE_GROUP)
+   /**
+    * Polls the {@link org.jclouds.azurecompute.arm.features.ResourceGroupApi} until the specified resource is no longer part of the
+    * resoure group. This is required when deleting resources as the {@link org.jclouds.azurecompute.arm.features.ResourceGroupApi} may
+    * still show the resource as being a member for a short while after the resource has been deleted. E.g. the
+    * {@link org.jclouds.azurecompute.arm.features.NetworkSecurityGroupApi} may return a 404 for a newly deleted
+    * security group, however the (deleted) security group will for a short while still be a member of the resource group
+    */
+   protected Predicate<IdReference> provideNotInResourceGroupPredicate(final AzureComputeApi api, final ComputeServiceConstants.Timeouts timeouts,
          final PollPeriod pollPeriod) {
       long timeout = timeouts.nodeTerminated;
       return retry(new Predicate<IdReference>() {

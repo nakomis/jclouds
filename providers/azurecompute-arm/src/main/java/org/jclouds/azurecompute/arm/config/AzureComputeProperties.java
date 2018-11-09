@@ -28,7 +28,7 @@ public class AzureComputeProperties {
 
    public static final String TIMEOUT_RESOURCE_DELETED = "jclouds.azurecompute.arm.timeout.resourcedeleted";
 
-   public static final String TIMEOUT_RESOURCE_REMOVED = "jclouds.azurecompute.arm.timeout.resourceremoved";
+   public static final String NOT_IN_RESOURCE_GROUP = "jclouds.azurecompute.arm.notinresourcegroup";
 
    public static final String DEFAULT_VNET_ADDRESS_SPACE_PREFIX = "jclouds.azurecompute.arm.vnet.addressprefix";
 
